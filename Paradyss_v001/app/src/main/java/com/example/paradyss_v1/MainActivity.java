@@ -4,15 +4,23 @@ package com.example.paradyss_v1;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.Context;
+import android.content.pm.ActivityInfo;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 //import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 
 import java.util.Random;
 
@@ -50,7 +58,31 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
+        //풀 스크린은 메니페스트에서 적용했고, 하단 바 삭제는 아래서 진행한다.
+        int uiOptions = getWindow().getDecorView().getSystemUiVisibility();
+        int newUiOptions = uiOptions;
+        boolean isImmersiveModeEnabled = ((uiOptions | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY) == uiOptions);
+        if (isImmersiveModeEnabled) {
+            Log.i("Is on?", "Turning immersive mode mode off. ");
+        } else {
+            Log.i("Is on?", "Turning immersive mode mode on.");
+        }
+
+        newUiOptions ^= View.SYSTEM_UI_FLAG_HIDE_NAVIGATION;
+        newUiOptions ^= View.SYSTEM_UI_FLAG_FULLSCREEN;
+        newUiOptions ^= View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+        getWindow().getDecorView().setSystemUiVisibility(newUiOptions);
+
+
+        //회전 불가 옵션
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         super.onCreate(savedInstanceState);
+        setContentView(new MyView(this));
+        //그림 그릴 때는 아래를 지운다 일반 레이아웃은 없애야 겠지..
+
+        /*
+
         setContentView(R.layout.activity_main);
 
         //Using the Gyroscope & Accelometer
@@ -84,6 +116,7 @@ public class MainActivity extends AppCompatActivity {
         //이게 넘어가면
 
         //
+        */
 
 
     }
@@ -282,6 +315,186 @@ public class MainActivity extends AppCompatActivity {
 
 
 }
+
+class MyView extends View{
+
+    Paint [] paint_block;
+    Path [] path_block;
+
+    Paint [] paint_blockline;
+    Path [] path_blockline;
+
+    //Paint paint_block2;
+    //Path path_block2;
+
+
+    public MyView(Context context){
+        super(context);
+        base_setting();
+    }
+    public MyView(Context context, AttributeSet attrs) {
+        super(context, attrs);
+    }
+
+    public MyView(Context context, AttributeSet attrs, int defStyle) {
+        super(context, attrs, defStyle);
+    }
+
+    private void base_setting(){
+        paint_block = new Paint[40];
+        for(int i =0; i<40;i++){
+            paint_block[i] = new Paint();
+            paint_block[i].setStrokeWidth(40);
+        }
+
+        path_block = new Path[40];
+        for(int i =0; i<40;i++){
+            path_block[i] = new Path();
+        }
+
+        //흰색 외곽성
+        paint_blockline = new Paint[40];
+        path_blockline = new Path[40];
+        for(int i =0; i<40;i++){
+            paint_blockline[i] = new Paint();
+            paint_blockline[i].setStrokeWidth(7);
+            path_blockline[i] = new Path();
+        }
+
+    }
+
+    //여기서 사실상 모든 것을 그린다.
+
+    @Override
+    public void onDraw(Canvas canvas){
+        super.onDraw(canvas);
+        canvas.drawColor(Color.GRAY);
+
+        // 약간의 위치 보정 값
+        int n = 100;
+        int changer = 0;
+
+        int n_d = 110;
+
+        //외곽선 보정값
+        int b_1 = 20;
+        int b_2 = 17;
+        int b_3 = 10;
+
+        //j는 높이, i는 너비
+        for (int j = 0; j< 8; j++) {
+            for (int i = 0; i < 5; i++) {
+
+                //짝수모드 0 / 홀수모드 1
+                if (changer == 1){
+                    //이게 기본이 되어야 한다.
+                    path_block[i+5*j].reset();
+                    path_block[i+5*j].moveTo(200 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3) );
+                    path_block[i+5*j].lineTo(400 + (400 + 40) * (i - 2) + n, 300 + (480-n_d)*(j-3) );
+                    path_block[i+5*j].lineTo(600 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3) );
+                    path_block[i+5*j].lineTo(600 + (400 + 40) * (i - 2) + n , 640 + (480-n_d)*(j-3));
+                    path_block[i+5*j].lineTo(400 + (400 + 40) * (i - 2) + n, 740 + (480-n_d)*(j-3));
+                    path_block[i+5*j].lineTo(200 + (400 + 40) * (i - 2) + n , 640 + (480-n_d)*(j-3));
+                    path_block[i+5*j].lineTo(200 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3));
+                    path_block[i+5*j].close();
+
+                    path_blockline[i+5*j].reset();
+                    path_blockline[i+5*j].moveTo(200 + (400 + 40) * (i - 2) + n - b_2, 400 + (480-n_d)*(j-3) -b_3);
+                    path_blockline[i+5*j].lineTo(400 + (400 + 40) * (i - 2) + n, 300 + (480-n_d)*(j-3)-b_1);
+                    path_blockline[i+5*j].lineTo(600 + (400 + 40) * (i - 2) + n + b_2, 400 + (480-n_d)*(j-3)-b_3);
+                    path_blockline[i+5*j].lineTo(600 + (400 + 40) * (i - 2) + n + b_2, 640 + (480-n_d)*(j-3)+b_3);
+                    path_blockline[i+5*j].lineTo(400 + (400 + 40) * (i - 2) + n, 740 + (480-n_d)*(j-3)+b_1);
+                    path_blockline[i+5*j].lineTo(200 + (400 + 40) * (i - 2) + n - b_2, 640 + (480-n_d)*(j-3)+b_3);
+                    path_blockline[i+5*j].lineTo(200 + (400 + 40) * (i - 2) + n - b_2, 400 + (480-n_d)*(j-3)-b_3);
+                    path_blockline[i+5*j].close();
+
+
+                }
+                else{
+                    path_block[i+5*j].reset();
+                    path_block[i+5*j].moveTo(200 + 220 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3));
+                    path_block[i+5*j].lineTo(400 + 220 + (400 + 40) * (i - 2) + n, 300 + (480-n_d)*(j-3));
+                    path_block[i+5*j].lineTo(600 + 220 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3));
+                    path_block[i+5*j].lineTo(600 + 220 + (400 + 40) * (i - 2) + n , 640 + (480-n_d)*(j-3));
+                    path_block[i+5*j].lineTo(400 + 220 + (400 + 40) * (i - 2) + n, 740 + (480-n_d)*(j-3));
+                    path_block[i+5*j].lineTo(200 + 220 + (400 + 40) * (i - 2) + n , 640 + (480-n_d)*(j-3));
+                    path_block[i+5*j].lineTo(200 + 220 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3));
+                    path_block[i+5*j].close();
+
+                    path_blockline[i+5*j].reset();
+                    path_blockline[i+5*j].moveTo(200 + 220 + (400 + 40) * (i - 2) + n- b_2, 400 + (480-n_d)*(j-3)-b_3);
+                    path_blockline[i+5*j].lineTo(400 + 220 + (400 + 40) * (i - 2) + n, 300 + (480-n_d)*(j-3)-b_1);
+                    path_blockline[i+5*j].lineTo(600 + 220 + (400 + 40) * (i - 2) + n + b_2, 400 + (480-n_d)*(j-3)-b_3);
+                    path_blockline[i+5*j].lineTo(600 + 220 + (400 + 40) * (i - 2) + n + b_2, 640 + (480-n_d)*(j-3)+b_3);
+                    path_blockline[i+5*j].lineTo(400 + 220 + (400 + 40) * (i - 2) + n, 740 + (480-n_d)*(j-3)+b_1);
+                    path_blockline[i+5*j].lineTo(200 + 220 + (400 + 40) * (i - 2) + n- b_2, 640 + (480-n_d)*(j-3)+b_3);
+                    path_blockline[i+5*j].lineTo(200 + 220 + (400 + 40) * (i - 2) + n- b_2, 400 + (480-n_d)*(j-3)-b_3);
+                    path_blockline[i+5*j].close();
+                }
+            }
+            if (changer==0){
+                changer = 1;
+            }
+            else
+            {
+                changer = 0;
+            }
+        }
+        /*
+        path_block2.reset();
+        path_block2.moveTo(200+400,400);
+        path_block2.lineTo(400+400,300);
+        path_block2.lineTo(600+400,400);
+        path_block2.lineTo(600+400, 600);
+        path_block2.lineTo(400+400,700);
+        path_block2.lineTo(200+400,600);
+        path_block2.lineTo(200+400,400);
+        path_block2.close();
+        */
+
+        for(int i = 0; i< 40; i++){
+            paint_block[i].setColor(Color.YELLOW);
+            paint_block[i].setStyle(Paint.Style.FILL);
+            canvas.drawPath(path_block[i],paint_block[i]);
+            //외곽선
+            paint_block[i].setColor(Color.BLACK);
+            paint_block[i].setStyle(Paint.Style.STROKE);
+            canvas.drawPath(path_block[i],paint_block[i]);
+            //
+        }
+
+        for(int i = 0; i<40; i ++){
+            paint_blockline[i].setColor(Color.RED);
+            paint_blockline[i].setStyle(Paint.Style.STROKE);
+            canvas.drawPath(path_blockline[i],paint_blockline[i]);
+        }
+
+        /*
+        //속에 채우기
+        paint_block.setColor(Color.YELLOW);
+        paint_block.setStyle(Paint.Style.FILL);
+        canvas.drawPath(path_block,paint_block);
+        //외곽선
+        paint_block.setColor(Color.BLACK);
+        paint_block.setStyle(Paint.Style.STROKE);
+        canvas.drawPath(path_block,paint_block);
+
+        //속에 채우기
+        paint_block2.setColor(Color.YELLOW);
+        paint_block2.setStyle(Paint.Style.FILL);
+        canvas.drawPath(path_block2,paint_block2);
+        //외곽선
+        paint_block2.setColor(Color.BLACK);
+        paint_block2.setStyle(Paint.Style.STROKE);
+        canvas.drawPath(path_block2,paint_block2);
+           */
+
+    }
+
+
+}
+
+
 
 /*
 import androidx.appcompat.app.AppCompatActivity;
