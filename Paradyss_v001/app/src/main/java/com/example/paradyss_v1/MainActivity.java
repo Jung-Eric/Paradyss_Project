@@ -23,6 +23,8 @@ import android.view.Window;
 import android.view.WindowManager;
 
 import java.util.Random;
+import java.util.TimerTask;
+
 
 public class MainActivity extends AppCompatActivity {
 
@@ -33,6 +35,8 @@ public class MainActivity extends AppCompatActivity {
     private SensorEventListener mAccLis;
     private Sensor mAccelometerSensor = null;
 
+    public int x = 0;
+    public int y = 0;
 
     // 위 아래 블록 세트 여부 0이면 1->2 / 1이면 2->1
     public int blockBool = 0;
@@ -56,6 +60,10 @@ public class MainActivity extends AppCompatActivity {
 
     //10개 행 중에서 4칸을 넘어가면 새로
 
+
+    // 우선 뷰는 새로 하나 만든다.
+    //MyView my_nv = new MyView(this);
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
@@ -78,7 +86,15 @@ public class MainActivity extends AppCompatActivity {
         //회전 불가 옵션
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         super.onCreate(savedInstanceState);
+
+
+        // 이게 My view를 받아서 동작시키는 제일 중요한 함수--------------------------------
         setContentView(new MyView(this));
+
+        //MyView my_nv = new MyView(this);
+        //setContentView(my_nv);
+
+
         //그림 그릴 때는 아래를 지운다 일반 레이아웃은 없애야 겠지..
 
         /*
@@ -324,6 +340,10 @@ class MyView extends View{
     Paint [] paint_blockline;
     Path [] path_blockline;
 
+    //이 만큼 이동했다고 보정해서 출력해 주는 것이다!
+    public int x;
+    public int y;
+
     //Paint paint_block2;
     //Path path_block2;
 
@@ -453,18 +473,18 @@ class MyView extends View{
         */
 
         for(int i = 0; i< 40; i++){
-            paint_block[i].setColor(Color.YELLOW);
+            paint_block[i].setColor(Color.rgb(114,70,0));
             paint_block[i].setStyle(Paint.Style.FILL);
             canvas.drawPath(path_block[i],paint_block[i]);
             //외곽선
-            paint_block[i].setColor(Color.BLACK);
+            paint_block[i].setColor(Color.rgb(94,44,0));
             paint_block[i].setStyle(Paint.Style.STROKE);
             canvas.drawPath(path_block[i],paint_block[i]);
             //
         }
 
         for(int i = 0; i<40; i ++){
-            paint_blockline[i].setColor(Color.RED);
+            paint_blockline[i].setColor(Color.rgb(38, 21, 2));
             paint_blockline[i].setStyle(Paint.Style.STROKE);
             canvas.drawPath(path_blockline[i],paint_blockline[i]);
         }
@@ -491,6 +511,15 @@ class MyView extends View{
 
     }
 
+
+}
+//게임 내 시간을 흐르게 만드는 기능
+class CustomTimer extends TimerTask{
+    @Override
+    public void run(){
+
+
+    }
 
 }
 

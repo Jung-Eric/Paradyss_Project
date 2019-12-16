@@ -3,4 +3,21 @@
     <color name="colorPrimary">#008577</color>
     <color name="colorPrimaryDark">#00574B</color>
     <color name="colorAccent">#D81B60</color>
+
+    <color name="gline">#261502</color>
+
+    <color name="gout_1">#5e2c00</color>
+    <color name="gin_1">#724600</color>
+
+    <color name="gout_2">#500a00</color>
+    <color name="gin_2">#682900</color>
+
+    <color name="gout_3">#3b0d0d</color>
+    <color name="gin_3">#4e2211</color>
+
+    <color name="gout_4">#291013</color>
+    <color name="gin_4">#543e3a</color>
+
+    <color name="gout_5">#2d2727</color>
+    <color name="gin_5">#514b4d</color>
 </resources>
