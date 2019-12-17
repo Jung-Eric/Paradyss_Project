@@ -5,16 +5,23 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 //import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -23,6 +30,7 @@ import android.view.Window;
 import android.view.WindowManager;
 
 import java.util.Random;
+import java.util.Timer;
 import java.util.TimerTask;
 
 
@@ -35,8 +43,14 @@ public class MainActivity extends AppCompatActivity {
     private SensorEventListener mAccLis;
     private Sensor mAccelometerSensor = null;
 
+    //게임 화면 보정용
     public int x = 0;
     public int y = 0;
+
+    //게임 화면 센서 조정 용도
+    public double Xval = 0;
+    public double Yval = 0;
+    public double Zval = 0;
 
     // 위 아래 블록 세트 여부 0이면 1->2 / 1이면 2->1
     public int blockBool = 0;
@@ -60,9 +74,28 @@ public class MainActivity extends AppCompatActivity {
 
     //10개 행 중에서 4칸을 넘어가면 새로
 
-
+    MyView my_nv;
     // 우선 뷰는 새로 하나 만든다.
     //MyView my_nv = new MyView(this);
+
+    //시작, 끝 관련 인수
+    int Start_Count = 0;
+    int End_count = 0;
+
+
+    //점프 관련 값
+    int hopOn = 0;
+    double hopCount = 0;
+    int hopMaintain = 0;
+
+    double hopAccel = 0;
+
+    //비어있는 공간 측정, 현재까지 뚫린 개수도 보관
+    int emptycount = 0;
+    int [] emptyBlock = new int[100];
+
+    //블록 타입을 평볌하게 저장
+    int [] blockType = new int[100];
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,28 +121,43 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
 
-        // 이게 My view를 받아서 동작시키는 제일 중요한 함수--------------------------------
-        setContentView(new MyView(this));
+        // 이게 My view를 받아서 동작시키는 제일 중요한 함수----------------------------------------
+        //setContentView(new MyView(this));
 
-        //MyView my_nv = new MyView(this);
-        //setContentView(my_nv);
+        my_nv = new MyView(this);
+
+        //랜덤 타입 블록 생성--------------------------
+        rand_block_type(my_nv.random_block_out,my_nv.random_block_in);
+        //시작할 때 구멍 1개 뚫기
+        emptycount=0;
+        emptyBlock[emptycount] = 20;
+
+
+        setContentView(my_nv);
 
 
         //그림 그릴 때는 아래를 지운다 일반 레이아웃은 없애야 겠지..
+        //setContentView(R.layout.activity_main);
 
-        /*
 
-        setContentView(R.layout.activity_main);
-
+        //본격 로테이션 벡터 받아서 작동시키기!
         //Using the Gyroscope & Accelometer
         mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 
+
+
         //Using the Accelometer
         //mAccelometerSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+
+        //본격적인 처리, 작동을 시작한다.
         mAccelometerSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
         mAccLis = new AccelometerListener();
+        mSensorManager.registerListener(mAccLis, mAccelometerSensor, SensorManager.SENSOR_DELAY_UI);
 
+
+        //아랫 부분은 주석처리로
         //Touch Listener for Accelometer
+        /*
         findViewById(R.id.a_start).setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -127,15 +175,247 @@ public class MainActivity extends AppCompatActivity {
                 return false;
             }
         });
+        */
 
         //블록 생산 30행과 50열
         //이게 넘어가면
 
-        //
-        */
 
+
+
+        //이게 게임 진행의 타이머 역할을 한다.
+        // 휴.. 성공!
+
+        TimerTask tt = new TimerTask() {
+            @Override
+            public void run() {
+
+                //특정 프레임 후 시작한다.
+                if (Start_Count != -1){
+
+                    StartDelay(20);
+                }
+                else if (Start_Count == -1) {
+                    if (Xval >= 0) {
+                        hopper(44, 74, -1);
+                    } else if (Xval <= 0) {
+                        hopper(44, 74, 1);
+                    }
+                    //my_nv.x = my_nv.x+5;
+                    //my_nv.y = my_nv.y+5;
+
+                }
+
+                EndDelay();
+            }
+        };
+        //이건 사실상 프레임 지정 용도이다..
+        Timer timer = new Timer();
+        timer.schedule(tt, 0,50);
 
     }
+
+    public void StartDelay(int i){
+        my_nv.emptycount = emptycount;
+        my_nv.emptyblock = emptyBlock;
+        Start_Count = Start_Count + 1;
+        if(Start_Count == i){
+            Start_Count = -1;
+        }
+
+    }
+
+    public void EndDelay(){
+        if(my_nv.life <= 0){
+            Start_Count = 500;
+        }
+    }
+
+    public void hopper(int xx,int yy, int dir){
+
+        //뛰지 않는 버전 0 / 뛰는 버전 1
+        // 0은 준비 시간 / 1은 뛰는 시간
+        if(hopOn == 0){
+            if(hopCount >= 10){
+                hopCount = 10;
+                hopOn = 1;
+                hopMaintain = dir;
+            }
+            else {
+                hopCount = hopCount + 1 +hopAccel;
+            }
+        //그냥 돌진이 아닐 때의 모습을 그려보자
+        if (Xval>0.5){
+            //제일 큰 값
+            my_nv.digger_mode = 10;
+        }
+        else if (Xval > 0.45){
+            my_nv.digger_mode = 9;
+        }
+        else if (Xval > 0.4){
+            my_nv.digger_mode = 8;
+        }
+        else if (Xval > 0.35){
+            my_nv.digger_mode = 7;
+        }
+        else if (Xval > 0.3){
+            my_nv.digger_mode = 6;
+        }
+        else if (Xval > 0.25){
+            my_nv.digger_mode = 5;
+        }
+        else if (Xval > 0.20){
+            my_nv.digger_mode = 4;
+        }
+        else if (Xval > 0.15){
+            my_nv.digger_mode = 3;
+        }
+        else if (Xval > 0.10){
+            my_nv.digger_mode = 2;
+        }
+        else if (Xval > 0.05){
+            my_nv.digger_mode = 1;
+        }
+        else if (Xval > -0.05){
+            my_nv.digger_mode = 0;
+        }
+        else if (Xval > -0.10){
+            my_nv.digger_mode = 11;
+        }
+        else if (Xval > -0.15){
+            my_nv.digger_mode = 12;
+        }
+        else if (Xval > -0.20){
+            my_nv.digger_mode = 13;
+        }
+        else if (Xval > -0.25){
+            my_nv.digger_mode = 14;
+        }
+        else if (Xval > -0.30){
+            my_nv.digger_mode = 15;
+        }
+        else if (Xval > -0.35){
+            my_nv.digger_mode = 16;
+        }
+        else if (Xval > -0.40){
+            my_nv.digger_mode = 17;
+        }
+        else if (Xval > -0.45){
+            my_nv.digger_mode = 18;
+        }
+        else if (Xval > -0.5){
+            my_nv.digger_mode = 19;
+        }
+        else if (Xval <= -0.5){
+            my_nv.digger_mode = 20;
+        }
+        else{
+            my_nv.digger_mode = 0;
+        }
+
+
+        }
+        else if(hopOn == 1){
+            my_nv.life = my_nv.life - 5;
+            if(hopCount > 0){
+                if(hopCount == 10){
+                    if(hopMaintain == 1) {
+                        my_nv.x = my_nv.x - 30;
+                        my_nv.y = my_nv.y - 50;
+                    }
+                    else if(hopMaintain == - 1){
+                        my_nv.x = my_nv.x + 30;
+                        my_nv.y = my_nv.y - 50;
+                    }
+                }
+                else if(hopCount == 8){
+                    if(hopMaintain == 1) {
+                        my_nv.x = my_nv.x - 50;
+                        my_nv.y = my_nv.y - 84;
+                    }
+                    else if(hopMaintain == - 1){
+                        my_nv.x = my_nv.x + 50;
+                        my_nv.y = my_nv.y - 84;
+                    }
+                }
+                //여기서 그림을 없앤다.
+                else if(hopCount == 6){
+                    if(hopMaintain == 1) {
+                        if((emptycount % 2)==0){
+                            emptycount++;
+                            emptyBlock[emptycount]=emptyBlock[emptycount-1];
+                            my_nv.emptycount = emptycount;
+                            my_nv.emptyblock = emptyBlock;
+                            my_nv.x = my_nv.x - 70;
+                            my_nv.y = my_nv.y - 117;
+                        }
+                        else if((emptycount % 2)==1){
+                            emptycount++;
+                            emptyBlock[emptycount]=emptyBlock[emptycount-1]+1;
+                            my_nv.emptycount = emptycount;
+                            my_nv.emptyblock = emptyBlock;
+                            my_nv.x = my_nv.x - 70;
+                            my_nv.y = my_nv.y - 117;
+                        }
+                    }
+                    else if(hopMaintain == - 1){
+                        if((emptycount % 2)==0){
+                            emptycount++;
+                            emptyBlock[emptycount]=emptyBlock[emptycount-1]-1;
+                            my_nv.emptycount = emptycount;
+                            my_nv.emptyblock = emptyBlock;
+                            my_nv.x = my_nv.x + 70;
+                            my_nv.y = my_nv.y - 117;
+                        }
+                        else if((emptycount % 2)==1){
+                            emptycount++;
+                            emptyBlock[emptycount]=emptyBlock[emptycount-1];
+                            my_nv.emptycount = emptycount;
+                            my_nv.emptyblock = emptyBlock;
+                            my_nv.x = my_nv.x + 70;
+                            my_nv.y = my_nv.y - 117;
+                        }
+                    }
+                }
+                else if(hopCount == 4){
+                    if(hopMaintain == 1) {
+                        my_nv.x = my_nv.x - 40;
+                        my_nv.y = my_nv.y - 67;
+                    }
+                    else if(hopMaintain == - 1){
+                        my_nv.x = my_nv.x + 40;
+                        my_nv.y = my_nv.y - 67;
+                    }
+                } //가속을 추가로 적는다..
+                else if(hopCount == 2){
+                    if(hopMaintain == 1) {
+                        my_nv.x = my_nv.x - 30;
+                        my_nv.y = my_nv.y - 52;
+                        if(hopAccel < 1) {
+                            hopAccel = hopAccel + 0.07;
+                        }
+                    }
+                    else if(hopMaintain == - 1){
+                        my_nv.x = my_nv.x + 30;
+                        my_nv.y = my_nv.y - 52;
+                        if(hopAccel < 1) {
+                            hopAccel = hopAccel + 0.07;
+                        }
+                    }
+                }
+
+
+
+                hopCount = hopCount - 2;
+            }
+            else if(hopCount == 0){
+                hopMaintain = 0;
+                hopOn = 0;
+            }
+        }
+
+    }
+
 
     @Override
     public void onPause(){
@@ -152,8 +432,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // 대형 클래스
-    private class AccelometerListener implements SensorEventListener {
+    public class AccelometerListener implements SensorEventListener {
 
+        /*
+        public double Xval = 0;
+        public double Yval = 0;
+        public double Zval = 0;
+        */
         @Override
         public void onSensorChanged(SensorEvent event) {
             double q0 = event.values[3];
@@ -161,10 +446,11 @@ public class MainActivity extends AppCompatActivity {
             double q2 = event.values[1];
             double q3 = event.values[2];
 
-            double Xval = 2 * ((q1*q3)-(q0*q2));
-            double Yval = 2 * ((q2*q3)+(q0*q1));
-            double Zval = ((q0*q0)-(q1*q1)-(q2*q2)+(q3*q3));
+            Xval = 2 * ((q1*q3)-(q0*q2));
+            Yval = 2 * ((q2*q3)+(q0*q1));
+            Zval = ((q0*q0)-(q1*q1)-(q2*q2)+(q3*q3));
 
+            /*
             Log.e("LOG", "ACCELOMETER           [q0]:" + String.format("%.4f", q0)
                     + "           [q1]:" + String.format("%.4f", q1)
                     + "           [q2]:" + String.format("%.4f", q2)
@@ -172,6 +458,7 @@ public class MainActivity extends AppCompatActivity {
                     + "           [Xval]:" + String.format("%.4f", Xval)
                     + "           [Yval]:" + String.format("%.4f", Yval)
                     + "           [Zval]:" + String.format("%.4f", Zval) );
+            */
 
             /*
             double accX = event.values[0];
@@ -320,6 +607,9 @@ public class MainActivity extends AppCompatActivity {
         imp_RD = LT+RT-imp_LD;
         imp_RM = (LT+LM+imp_LD)-(RT+imp_RD);
 
+
+
+
         //LD, RD, RM 전송하기
         int [] blocks = new int[3];
         blocks[0] = imp_LD;
@@ -328,30 +618,136 @@ public class MainActivity extends AppCompatActivity {
         return blocks;
     }
 
-
+    void rand_block_type(int []a, int []b){
+        int totalBlocks = 4000;
+        Random rand = new Random();
+        int nn = 0;
+        for(int i = 0; i< totalBlocks; i++){
+            nn = rand.nextInt(5); //0부터 4까지 제공
+            if(nn == 0){
+                a[i] = Color.rgb(94,44,0);
+                b[i] = Color.rgb(114,70,0);
+                //c[i] = 0;
+            }
+            else if(nn == 1){
+                a[i] = Color.rgb(80,10,0);
+                b[i] = Color.rgb(104,41,0);
+                //c[i] = 1;
+            }
+            else if(nn == 2){
+                a[i] = Color.rgb(59,13,13);
+                b[i] = Color.rgb(78,34,17);
+                //c[i] = 2;
+            }
+            else if(nn == 3){
+                a[i] = Color.rgb(41,16,19);
+                b[i] = Color.rgb(84,62,58);
+                //c[i] = 3;
+            }
+            else if(nn == 4){
+                a[i] = Color.rgb(45,39,39);
+                b[i] = Color.rgb(81,75,77);
+                //c[i] = 4;
+            }
+        }
+    }
 
 }
 
-class MyView extends View{
+class MyView extends View {
 
-    Paint [] paint_block;
-    Path [] path_block;
+    //일단 현재 블록 개수는 2000개이다.
+    static int totalBlocks = 4000;
 
-    Paint [] paint_blockline;
-    Path [] path_blockline;
+    Paint[] paint_block;
+    Path[] path_block;
+
+    Paint[] paint_blockline;
+    Path[] path_blockline;
 
     //이 만큼 이동했다고 보정해서 출력해 주는 것이다!
     public int x;
     public int y;
 
+    int[] random_block_in = new int[totalBlocks];
+    int[] random_block_out = new int[totalBlocks];
+
+    //그리지 말아야 하는 블록 표기
+    int emptycount = 0;
+    int[] emptyblock = new int[100];
+
     //Paint paint_block2;
     //Path path_block2;
 
+    //게임을 위한 시간 값
+    long timer;
 
-    public MyView(Context context){
+    //땅굴맨 그리기 전용
+    public  Bitmap [] digger = new Bitmap[21];
+    public int digger_mode = 0; // 이 값을 기준으로 표시한다.
+
+
+    //남은 생명을 위한 값
+    int life = 800;
+
+    public MyView(Context context) {
         super(context);
         base_setting();
+
+        //좌우 반전용으로 만들었다.
+        Matrix sideInversion = new Matrix();
+        sideInversion.setScale(-1, 1);
+
+
+
+        Resources r = context.getResources();
+
+        digger[0] = BitmapFactory.decodeResource(r, R.drawable.character_0);
+
+        digger[1] = BitmapFactory.decodeResource(r, R.drawable.character_1);
+        digger[11] = Bitmap.createBitmap(digger[1], 0, 0,
+                digger[1].getWidth(), digger[1].getHeight(), sideInversion, false);
+
+        digger[2] = BitmapFactory.decodeResource(r, R.drawable.character_2);
+        digger[12] = Bitmap.createBitmap(digger[2], 0, 0,
+                digger[2].getWidth(), digger[2].getHeight(), sideInversion, false);
+
+        digger[3] = BitmapFactory.decodeResource(r, R.drawable.character_3);
+        digger[13] = Bitmap.createBitmap(digger[3], 0, 0,
+                digger[3].getWidth(), digger[3].getHeight(), sideInversion, false);
+
+        digger[4] = BitmapFactory.decodeResource(r, R.drawable.character_4);
+        digger[14] = Bitmap.createBitmap(digger[4], 0, 0,
+                digger[4].getWidth(), digger[4].getHeight(), sideInversion, false);
+
+        digger[5] = BitmapFactory.decodeResource(r, R.drawable.character_5);
+        digger[15] = Bitmap.createBitmap(digger[5], 0, 0,
+                digger[5].getWidth(), digger[5].getHeight(), sideInversion, false);
+
+        digger[6] = BitmapFactory.decodeResource(r, R.drawable.character_6);
+        digger[16] = Bitmap.createBitmap(digger[6], 0, 0,
+                digger[6].getWidth(), digger[6].getHeight(), sideInversion, false);
+
+        digger[7] = BitmapFactory.decodeResource(r, R.drawable.character_7);
+        digger[17] = Bitmap.createBitmap(digger[7], 0, 0,
+                digger[7].getWidth(), digger[7].getHeight(), sideInversion, false);
+
+        digger[8] = BitmapFactory.decodeResource(r, R.drawable.character_8);
+        digger[18] = Bitmap.createBitmap(digger[8], 0, 0,
+                digger[8].getWidth(), digger[8].getHeight(), sideInversion, false);
+
+        digger[9] = BitmapFactory.decodeResource(r, R.drawable.character_9);
+        digger[19] = Bitmap.createBitmap(digger[9], 0, 0,
+                digger[9].getWidth(), digger[9].getHeight(), sideInversion, false);
+
+        digger[10] = BitmapFactory.decodeResource(r, R.drawable.character_10);
+        digger[20] = Bitmap.createBitmap(digger[10], 0, 0,
+                digger[10].getWidth(), digger[10].getHeight(), sideInversion, false);
+
+
+
     }
+
     public MyView(Context context, AttributeSet attrs) {
         super(context, attrs);
     }
@@ -360,22 +756,22 @@ class MyView extends View{
         super(context, attrs, defStyle);
     }
 
-    private void base_setting(){
-        paint_block = new Paint[40];
-        for(int i =0; i<40;i++){
+    private void base_setting() {
+        paint_block = new Paint[totalBlocks];
+        for (int i = 0; i < totalBlocks; i++) {
             paint_block[i] = new Paint();
             paint_block[i].setStrokeWidth(40);
         }
 
-        path_block = new Path[40];
-        for(int i =0; i<40;i++){
+        path_block = new Path[totalBlocks];
+        for (int i = 0; i < totalBlocks; i++) {
             path_block[i] = new Path();
         }
 
-        //흰색 외곽성
-        paint_blockline = new Paint[40];
-        path_blockline = new Path[40];
-        for(int i =0; i<40;i++){
+        //바깥 외곽성
+        paint_blockline = new Paint[totalBlocks];
+        path_blockline = new Path[totalBlocks];
+        for (int i = 0; i < totalBlocks; i++) {
             paint_blockline[i] = new Paint();
             paint_blockline[i].setStrokeWidth(7);
             path_blockline[i] = new Path();
@@ -383,15 +779,21 @@ class MyView extends View{
 
     }
 
-    //여기서 사실상 모든 것을 그린다.
 
+    //여기서 사실상 모든 것을 그린다.
     @Override
-    public void onDraw(Canvas canvas){
+    public void onDraw(Canvas canvas) {
+
+        //SystemClock.elapsedRealtime();
+
         super.onDraw(canvas);
-        canvas.drawColor(Color.GRAY);
+        canvas.drawColor(Color.rgb(145, 80, 7));
 
         // 약간의 위치 보정 값
-        int n = 100;
+        // x는 n y는 m
+        int n = 135;
+        int m = 100;
+
         int changer = 0;
 
         int n_d = 110;
@@ -401,62 +803,64 @@ class MyView extends View{
         int b_2 = 17;
         int b_3 = 10;
 
+        int a = Color.rgb(114, 70, 0);
+
+
+        int game_width = 40;
+
         //j는 높이, i는 너비
-        for (int j = 0; j< 8; j++) {
-            for (int i = 0; i < 5; i++) {
+        for (int j = 0; j < 100; j++) {
+            for (int i = 0; i < game_width; i++) {
 
                 //짝수모드 0 / 홀수모드 1
-                if (changer == 1){
+                if (changer == 1) {
                     //이게 기본이 되어야 한다.
-                    path_block[i+5*j].reset();
-                    path_block[i+5*j].moveTo(200 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3) );
-                    path_block[i+5*j].lineTo(400 + (400 + 40) * (i - 2) + n, 300 + (480-n_d)*(j-3) );
-                    path_block[i+5*j].lineTo(600 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3) );
-                    path_block[i+5*j].lineTo(600 + (400 + 40) * (i - 2) + n , 640 + (480-n_d)*(j-3));
-                    path_block[i+5*j].lineTo(400 + (400 + 40) * (i - 2) + n, 740 + (480-n_d)*(j-3));
-                    path_block[i+5*j].lineTo(200 + (400 + 40) * (i - 2) + n , 640 + (480-n_d)*(j-3));
-                    path_block[i+5*j].lineTo(200 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3));
-                    path_block[i+5*j].close();
+                    path_block[i + game_width * j].reset();
+                    path_block[i + game_width * j].moveTo(200 + (400 + 40) * (i - 20) + n + x, 400 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(400 + (400 + 40) * (i - 20) + n + x, 300 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(600 + (400 + 40) * (i - 20) + n + x, 400 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(600 + (400 + 40) * (i - 20) + n + x, 640 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(400 + (400 + 40) * (i - 20) + n + x, 740 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(200 + (400 + 40) * (i - 20) + n + x, 640 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(200 + (400 + 40) * (i - 20) + n + x, 400 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].close();
 
-                    path_blockline[i+5*j].reset();
-                    path_blockline[i+5*j].moveTo(200 + (400 + 40) * (i - 2) + n - b_2, 400 + (480-n_d)*(j-3) -b_3);
-                    path_blockline[i+5*j].lineTo(400 + (400 + 40) * (i - 2) + n, 300 + (480-n_d)*(j-3)-b_1);
-                    path_blockline[i+5*j].lineTo(600 + (400 + 40) * (i - 2) + n + b_2, 400 + (480-n_d)*(j-3)-b_3);
-                    path_blockline[i+5*j].lineTo(600 + (400 + 40) * (i - 2) + n + b_2, 640 + (480-n_d)*(j-3)+b_3);
-                    path_blockline[i+5*j].lineTo(400 + (400 + 40) * (i - 2) + n, 740 + (480-n_d)*(j-3)+b_1);
-                    path_blockline[i+5*j].lineTo(200 + (400 + 40) * (i - 2) + n - b_2, 640 + (480-n_d)*(j-3)+b_3);
-                    path_blockline[i+5*j].lineTo(200 + (400 + 40) * (i - 2) + n - b_2, 400 + (480-n_d)*(j-3)-b_3);
-                    path_blockline[i+5*j].close();
+                    path_blockline[i + game_width * j].reset();
+                    path_blockline[i + game_width * j].moveTo(200 + (400 + 40) * (i - 20) + n - b_2 + x, 400 + (480 - n_d) * (j - 3) - b_3 + m + y);
+                    path_blockline[i + game_width * j].lineTo(400 + (400 + 40) * (i - 20) + n + x, 300 + (480 - n_d) * (j - 3) - b_1 + m + y);
+                    path_blockline[i + game_width * j].lineTo(600 + (400 + 40) * (i - 20) + n + b_2 + x, 400 + (480 - n_d) * (j - 3) - b_3 + m + y);
+                    path_blockline[i + game_width * j].lineTo(600 + (400 + 40) * (i - 20) + n + b_2 + x, 640 + (480 - n_d) * (j - 3) + b_3 + m + y);
+                    path_blockline[i + game_width * j].lineTo(400 + (400 + 40) * (i - 20) + n + x, 740 + (480 - n_d) * (j - 3) + b_1 + m + y);
+                    path_blockline[i + game_width * j].lineTo(200 + (400 + 40) * (i - 20) + n - b_2 + x, 640 + (480 - n_d) * (j - 3) + b_3 + m + y);
+                    path_blockline[i + game_width * j].lineTo(200 + (400 + 40) * (i - 20) + n - b_2 + x, 400 + (480 - n_d) * (j - 3) - b_3 + m + y);
+                    path_blockline[i + game_width * j].close();
 
 
-                }
-                else{
-                    path_block[i+5*j].reset();
-                    path_block[i+5*j].moveTo(200 + 220 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3));
-                    path_block[i+5*j].lineTo(400 + 220 + (400 + 40) * (i - 2) + n, 300 + (480-n_d)*(j-3));
-                    path_block[i+5*j].lineTo(600 + 220 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3));
-                    path_block[i+5*j].lineTo(600 + 220 + (400 + 40) * (i - 2) + n , 640 + (480-n_d)*(j-3));
-                    path_block[i+5*j].lineTo(400 + 220 + (400 + 40) * (i - 2) + n, 740 + (480-n_d)*(j-3));
-                    path_block[i+5*j].lineTo(200 + 220 + (400 + 40) * (i - 2) + n , 640 + (480-n_d)*(j-3));
-                    path_block[i+5*j].lineTo(200 + 220 + (400 + 40) * (i - 2) + n , 400 + (480-n_d)*(j-3));
-                    path_block[i+5*j].close();
+                } else {
+                    path_block[i + game_width * j].reset();
+                    path_block[i + game_width * j].moveTo(200 + 220 + (400 + 40) * (i - 20) + n + x, 400 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(400 + 220 + (400 + 40) * (i - 20) + n + x, 300 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(600 + 220 + (400 + 40) * (i - 20) + n + x, 400 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(600 + 220 + (400 + 40) * (i - 20) + n + x, 640 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(400 + 220 + (400 + 40) * (i - 20) + n + x, 740 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(200 + 220 + (400 + 40) * (i - 20) + n + x, 640 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].lineTo(200 + 220 + (400 + 40) * (i - 20) + n + x, 400 + (480 - n_d) * (j - 3) + m + y);
+                    path_block[i + game_width * j].close();
 
-                    path_blockline[i+5*j].reset();
-                    path_blockline[i+5*j].moveTo(200 + 220 + (400 + 40) * (i - 2) + n- b_2, 400 + (480-n_d)*(j-3)-b_3);
-                    path_blockline[i+5*j].lineTo(400 + 220 + (400 + 40) * (i - 2) + n, 300 + (480-n_d)*(j-3)-b_1);
-                    path_blockline[i+5*j].lineTo(600 + 220 + (400 + 40) * (i - 2) + n + b_2, 400 + (480-n_d)*(j-3)-b_3);
-                    path_blockline[i+5*j].lineTo(600 + 220 + (400 + 40) * (i - 2) + n + b_2, 640 + (480-n_d)*(j-3)+b_3);
-                    path_blockline[i+5*j].lineTo(400 + 220 + (400 + 40) * (i - 2) + n, 740 + (480-n_d)*(j-3)+b_1);
-                    path_blockline[i+5*j].lineTo(200 + 220 + (400 + 40) * (i - 2) + n- b_2, 640 + (480-n_d)*(j-3)+b_3);
-                    path_blockline[i+5*j].lineTo(200 + 220 + (400 + 40) * (i - 2) + n- b_2, 400 + (480-n_d)*(j-3)-b_3);
-                    path_blockline[i+5*j].close();
+                    path_blockline[i + game_width * j].reset();
+                    path_blockline[i + game_width * j].moveTo(200 + 220 + (400 + 40) * (i - 20) + n - b_2 + x, 400 + (480 - n_d) * (j - 3) - b_3 + m + y);
+                    path_blockline[i + game_width * j].lineTo(400 + 220 + (400 + 40) * (i - 20) + n + x, 300 + (480 - n_d) * (j - 3) - b_1 + m + y);
+                    path_blockline[i + game_width * j].lineTo(600 + 220 + (400 + 40) * (i - 20) + n + b_2 + x, 400 + (480 - n_d) * (j - 3) - b_3 + m + y);
+                    path_blockline[i + game_width * j].lineTo(600 + 220 + (400 + 40) * (i - 20) + n + b_2 + x, 640 + (480 - n_d) * (j - 3) + b_3 + m + y);
+                    path_blockline[i + game_width * j].lineTo(400 + 220 + (400 + 40) * (i - 20) + n + x, 740 + (480 - n_d) * (j - 3) + b_1 + m + y);
+                    path_blockline[i + game_width * j].lineTo(200 + 220 + (400 + 40) * (i - 20) + n - b_2 + x, 640 + (480 - n_d) * (j - 3) + b_3 + m + y);
+                    path_blockline[i + game_width * j].lineTo(200 + 220 + (400 + 40) * (i - 20) + n - b_2 + x, 400 + (480 - n_d) * (j - 3) - b_3 + m + y);
+                    path_blockline[i + game_width * j].close();
                 }
             }
-            if (changer==0){
+            if (changer == 0) {
                 changer = 1;
-            }
-            else
-            {
+            } else {
                 changer = 0;
             }
         }
@@ -472,46 +876,94 @@ class MyView extends View{
         path_block2.close();
         */
 
-        for(int i = 0; i< 40; i++){
-            paint_block[i].setColor(Color.rgb(114,70,0));
-            paint_block[i].setStyle(Paint.Style.FILL);
-            canvas.drawPath(path_block[i],paint_block[i]);
-            //외곽선
-            paint_block[i].setColor(Color.rgb(94,44,0));
-            paint_block[i].setStyle(Paint.Style.STROKE);
-            canvas.drawPath(path_block[i],paint_block[i]);
-            //
+        for (int j = 0; j < 100; j++) {
+            for (int i = 0; i < game_width; i++) {
+
+                //보정 값
+                if (j>=3){
+                    if(i != emptyblock[j-3]){
+
+                        paint_block[j * game_width + i].setColor(random_block_in[j * game_width + i]);
+                        paint_block[j * game_width + i].setStyle(Paint.Style.FILL);
+                        canvas.drawPath(path_block[j * game_width + i], paint_block[j * game_width + i]);
+                        //속 채우기
+
+                        paint_block[j * game_width + i].setColor(random_block_out[j * game_width + i]);
+                        paint_block[j * game_width + i].setStyle(Paint.Style.STROKE);
+                        canvas.drawPath(path_block[j * game_width + i], paint_block[j * game_width + i]);
+                        //외곽선
+
+                        paint_blockline[j * game_width + i].setColor(Color.rgb(38, 21, 2));
+                        paint_blockline[j * game_width + i].setStyle(Paint.Style.STROKE);
+                        canvas.drawPath(path_blockline[j * game_width + i], paint_blockline[j * game_width + i]);
+                        //검은 외곽선
+
+
+                    }
+                }
+                else{
+                    paint_block[j * game_width + i].setColor(random_block_in[j * game_width + i]);
+                    paint_block[j * game_width + i].setStyle(Paint.Style.FILL);
+                    canvas.drawPath(path_block[j * game_width + i], paint_block[j * game_width + i]);
+                    //속 채우기
+
+                    paint_block[j * game_width + i].setColor(random_block_out[j * game_width + i]);
+                    paint_block[j * game_width + i].setStyle(Paint.Style.STROKE);
+                    canvas.drawPath(path_block[j * game_width + i], paint_block[j * game_width + i]);
+                    //외곽선
+
+                    paint_blockline[j * game_width + i].setColor(Color.rgb(38, 21, 2));
+                    paint_blockline[j * game_width + i].setStyle(Paint.Style.STROKE);
+                    canvas.drawPath(path_blockline[j * game_width + i], paint_blockline[j * game_width + i]);
+                }
+
+
+            }
         }
 
-        for(int i = 0; i<40; i ++){
-            paint_blockline[i].setColor(Color.rgb(38, 21, 2));
-            paint_blockline[i].setStyle(Paint.Style.STROKE);
-            canvas.drawPath(path_blockline[i],paint_blockline[i]);
+
+        Paint paint=new Paint();
+        paint.setAntiAlias(true);// 확대해도 선이 울퉁불퉁하지 않고 매끈하게 설정
+
+        Paint paint2 = new Paint();
+        paint.setAntiAlias(true);
+
+        if(life > 400){
+            paint.setColor(Color.BLUE);
+        }
+        else if(life > 200){
+            paint.setColor(Color.YELLOW);
+        }
+        else{
+            paint.setColor(Color.RED);
+        }
+        paint2.setColor(Color.GRAY);
+
+
+        //여기 캐릭터를 그린다. 회전하는 캐릭터
+
+
+        int w=digger[digger_mode].getWidth();
+        int h=digger[digger_mode].getHeight();
+        Rect dst = new Rect(350, 430, 350 + w*2, 430 + h*2);
+        canvas.drawBitmap(digger[digger_mode],null,dst,null);
+
+
+
+
+        if(life>0) {
+            RectF rect4 = new RectF(50, 50, 50 + 800, 50 + 80);
+            RectF rect3 = new RectF(50, 50, 50 + life, 50 + 80); //(시작X,시작Y,끝X,끝y)
+            canvas.drawRoundRect(rect4, 20, 20, paint2);
+            canvas.drawRoundRect(rect3, 20, 20, paint);
+            //생명 칸
         }
 
-        /*
-        //속에 채우기
-        paint_block.setColor(Color.YELLOW);
-        paint_block.setStyle(Paint.Style.FILL);
-        canvas.drawPath(path_block,paint_block);
-        //외곽선
-        paint_block.setColor(Color.BLACK);
-        paint_block.setStyle(Paint.Style.STROKE);
-        canvas.drawPath(path_block,paint_block);
 
-        //속에 채우기
-        paint_block2.setColor(Color.YELLOW);
-        paint_block2.setStyle(Paint.Style.FILL);
-        canvas.drawPath(path_block2,paint_block2);
-        //외곽선
-        paint_block2.setColor(Color.BLACK);
-        paint_block2.setStyle(Paint.Style.STROKE);
-        canvas.drawPath(path_block2,paint_block2);
-           */
+        invalidate();
+
 
     }
-
-
 }
 //게임 내 시간을 흐르게 만드는 기능
 class CustomTimer extends TimerTask{
